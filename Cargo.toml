@@ -1,6 +1,6 @@
 [package]
 name = "myls"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["lome <1209518758@qq.com>"]
 edition = "2018"
 
@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
+term_size = "0.3.0"

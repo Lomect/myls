@@ -1,4 +1,5 @@
 extern crate clap;
+extern crate term_size;
 
 use clap::{App, Arg};
 
