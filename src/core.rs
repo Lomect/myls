@@ -1,13 +1,22 @@
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
-use std::os::unix::fs::PermissionsExt;
 
 use term_size;
 
 use crate::Options;
+use crate::meta::Meta;
 
 pub struct Core<'a> {
     options: &'a Options
+}
+
+#[derive(Default)]
+pub struct MaxInfo {
+    pub name: usize,
+    pub user: usize,
+    pub filesize: usize,
+    pub sizeuint: usize,
+    pub group: usize
 }
 
 impl<'a> Core<'a> {
@@ -34,18 +43,33 @@ impl<'a> Core<'a> {
 
         if !self.options.display_long {
             if !origin_files.is_empty() {
-                self.print_short(&origin_files);
+                self.print_short(origin_files);
             }
 
             for dir in origin_dirs {
                 println!("{}: ", dir.display().to_string());
                 let paths = self.list_folder(dir);
-                self.print_short(&paths);
+                self.print_short(paths);
             }
+        } else {
+            if !origin_files.is_empty() {
+                let mut dirinfo = MaxInfo::default();
+                let mut metas = self.path_to_metas(origin_files, &mut dirinfo);
+                self.print_long(&mut metas, &mut dirinfo);
+            }
+
+            for dir in origin_dirs {
+                println!("{}: ", dir.display().to_string());
+                let mut dirinfo = MaxInfo::default();
+                let paths = self.list_folder(dir);
+                let mut metas = self.path_to_metas(paths, &mut dirinfo);
+                self.print_long(&mut metas, &mut dirinfo);
+            }
+
         }
     }
 
-    fn print_short(&self, files: &Vec<PathBuf>) {
+    fn print_short(&self, files: Vec<PathBuf>) {
         let width = match term_size::dimensions() {
             Some((width, _)) => width,
             None => panic!("cannot get terminal size"),
@@ -57,7 +81,9 @@ impl<'a> Core<'a> {
             let name = file.file_name()
                 .expect(format!("Path: {}, Get file name fail Path", file.display().to_string()).as_str())
                 .to_str()
-                .expect(format!("Os str convert to str fail Path: {}", file.display().to_string()).as_str());
+                .expect(format!("Os str convert to str fail Path: {}", file.display().to_string()).as_str())
+                .to_string();
+
             if name.len() > name_max_size {
                 name_max_size = name.len();
             }
@@ -72,7 +98,7 @@ impl<'a> Core<'a> {
             if self.options.display_all || !name.starts_with(".") {
                 content += "  ";
                 per_value += 1;
-                content += name;
+                content.push_str(name.as_str());
 
                 if name.len() < name_max_size {
                     for _ in 0..(name_max_size - name.len()) {
@@ -91,14 +117,20 @@ impl<'a> Core<'a> {
         println!("{}", content);
     }
 
-    fn list_folder(&self, path: &Path) -> Vec<PathBuf> {
-        // 这里返回`PathBuf`是因为如果返回Vec<Path>的话，由于
-        // Path不是Sized的类型，所以不能作为返回值，如果返回
-        // Vec<&Path>， 由于新产生的Path是在该函数作用范围内的，如果
-        // 函数返回后该Path不在作用范围内，是错误的，这里还可以使用生命周期，
-        // 使得输入参数Path和输出Path生命周期相同
-        // fn list_folder(&self, path: &'a Path) -> Vec<&'a Path> {}
+    fn print_long(&self, metas: &mut Vec<Meta>, dirinfo: &mut MaxInfo) {
+        for meta in metas {
+            meta.format_meta(dirinfo);
+            println!("{} {} {} {} {} {} {}", meta.permission,
+                     meta.group,
+                     meta.user,
+                     meta.filesize,
+                     meta.size_uint,
+                     meta.time,
+                     meta.name);
+        }
+    }
 
+    fn list_folder(&self, path: &Path) -> Vec<PathBuf> {
         let mut inner_folder = Vec::new();
 
         let folders = read_dir(path).expect("read dir fail");
@@ -109,5 +141,38 @@ impl<'a> Core<'a> {
             }
         }
         inner_folder
+    }
+
+    fn path_to_metas(&self, paths: Vec<PathBuf>, dirinfo: &mut MaxInfo) -> Vec<Meta> {
+        let mut metas = Vec::new();
+        for path in paths {
+            let meta = match Meta::from_path(path.as_path()) {
+                Ok(meta) => {
+                    max(&meta, dirinfo);
+                    meta
+                },
+                Err(e) => panic!(e),
+            };
+            metas.push(meta);
+        }
+        metas
+    }
+}
+
+fn max(meta: &Meta, dirinfo: &mut MaxInfo) {
+    if meta.filesize.len() > dirinfo.filesize {
+        dirinfo.filesize = meta.filesize.len();
+    }
+
+    if meta.group.len() > dirinfo.group {
+        dirinfo.group = meta.group.len();
+    }
+
+    if meta.user.len() > dirinfo.user {
+        dirinfo.user = meta.user.len();
+    }
+
+    if meta.size_uint.len() > dirinfo.sizeuint {
+        dirinfo.sizeuint = meta.size_uint.len();
     }
 }

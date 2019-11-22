@@ -1,9 +1,14 @@
 extern crate clap;
 extern crate term_size;
+#[macro_use] extern crate quick_error;
+extern crate users;
+extern crate size;
+extern crate time;
 
 use clap::{App, Arg};
 
 mod core;
+mod meta;
 
 use crate::core::Core;
 
