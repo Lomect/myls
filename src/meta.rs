@@ -9,6 +9,7 @@ use size::{Size, Base, Style};
 use crate::core::MaxInfo;
 use std::time::UNIX_EPOCH;
 use time::Timespec;
+use std::panic::resume_unwind;
 
 quick_error!(
     #[derive(Debug)]
@@ -52,9 +53,9 @@ impl Meta {
         };
 
         let (meta, symlink) = match read_link(path) {
-            Ok(path) => {
-                let meta = path.symlink_metadata().expect("Fail to read symlink");
-                let symlink = path.to_str().expect("Fail to convert pathbuf to str");
+            Ok(res) => {
+                let meta = path.symlink_metadata().expect(format!("Fail to read symlink {}", path.to_str().expect("path to str fail")).as_str());
+                let symlink = res.to_str().expect("Fail to convert pathbuf to str");
                 (meta, Some(symlink.to_string()))
             },
             _ => {
@@ -65,6 +66,7 @@ impl Meta {
                 (meta, None)
             }
         };
+
         let user = get_user_by_uid(meta.uid())
             .expect("Get user by uid error")
             .name()
